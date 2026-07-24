@@ -3,8 +3,9 @@ import { agentLoop } from '../agent/loop.js';
 import { buildSystemPrompt } from '../agent/prompt.js';
 import { DEFAULT_MAX_STEPS } from '../agent/types.js';
 import type { AgentDoneReason } from '../agent/types.js';
+import { createCodebaseService, type CodebaseService } from '../codebase/service.js';
 import { ContextManager, DEFAULT_MAX_OUTPUT_TOKENS } from '../context/manager.js';
-import type { ContextReport } from '../context/types.js';
+import type { ContextReport, ContextSource } from '../context/types.js';
 import { findConfigFiles } from '../config/find.js';
 import { loadConfig } from '../config/loader.js';
 import type { Config } from '../config/schema.js';
@@ -31,6 +32,7 @@ export interface SessionDeps {
   /** Required when interactive && !autoApprove: asks the user a question, returns the raw answer. */
   ask?: (question: string, signal?: AbortSignal) => Promise<string>;
   undoStore?: UndoStore;
+  codebase?: CodebaseService;
   debug?: boolean;
 }
 
@@ -51,13 +53,17 @@ export function createSession(cwd: string, opts: SessionOptions): TerminalSessio
   const { config } = loadConfig(findConfigFiles(cwd));
   configureLogger(config.logLevel);
   const { provider, model } = createProvider(config);
+  const codebase = createCodebaseService(cwd, config.codebase, logger);
   return new TerminalSession({
     provider,
-    registry: createDefaultRegistry(config.permissions ?? {}),
+    registry: createDefaultRegistry(config.permissions ?? {}, {
+      ...(codebase ? { codebase } : {}),
+    }),
     model,
     config,
     cwd,
     undoStore: new FileUndoStore(),
+    ...(codebase ? { codebase } : {}),
     ...(opts.autoApprove !== undefined ? { autoApprove: opts.autoApprove } : {}),
     interactive: opts.interactive,
     ...(opts.ask ? { ask: opts.ask } : {}),
@@ -152,7 +158,16 @@ export class TerminalSession {
     const ac = new AbortController();
     this.currentAbort = ac;
     try {
-      const restored = await undoLatest(this.deps.cwd, store, ac.signal);
+      const restored = await undoLatest(
+        this.deps.cwd,
+        store,
+        ac.signal,
+        this.deps.codebase
+          ? (paths) => {
+              this.deps.codebase?.markDirty(paths);
+            }
+          : undefined,
+      );
       if (!restored) {
         process.stdout.write('Nothing to undo.\n');
         return false;
@@ -177,6 +192,9 @@ export class TerminalSession {
       logger,
       runId: this.runId,
       ...(this.deps.undoStore ? { undoStore: this.deps.undoStore } : {}),
+      ...(this.deps.codebase
+        ? { markFilesDirty: (paths: readonly string[]) => this.deps.codebase?.markDirty(paths) }
+        : {}),
     };
   }
 
@@ -214,6 +232,11 @@ export class TerminalSession {
         messages: this.history,
         maxSteps: this.deps.config.agent?.maxSteps ?? DEFAULT_MAX_STEPS,
         contextManager: this.contextManager,
+        ...(this.deps.codebase
+          ? {
+              contextSources: (signal?: AbortSignal) => this.repositorySources(signal),
+            }
+          : {}),
         ctx: this.toolContext(ac.signal),
         maxTokens: this.deps.config.model?.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
         ...(this.deps.config.model?.temperature !== undefined
@@ -256,6 +279,22 @@ export class TerminalSession {
       process.stdout.write('\n');
     }
   }
+
+  async close(): Promise<void> {
+    await this.deps.codebase?.close();
+  }
+
+  private async repositorySources(signal?: AbortSignal): Promise<readonly ContextSource[]> {
+    const service = this.deps.codebase;
+    if (!service) return [];
+    try {
+      return [await service.contextSource(signal)];
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      logger.warn({ errorType: (error as Error).name }, 'repository context unavailable');
+      return [];
+    }
+  }
 }
 
 function renderContextReport(report: ContextReport): void {
@@ -264,8 +303,13 @@ function renderContextReport(report: ContextReport): void {
     `[context] window=${budget.contextWindowTokens} input_limit=${budget.inputLimitTokens} output=${budget.maxOutputTokens} safety=${budget.safetyReserveTokens}\n`,
   );
   process.stderr.write(
-    `[context] before=${usage.historyTokensBefore} after=${usage.historyTokensAfter} total=${usage.totalInputTokens} accuracy=${usage.countAccuracy}:${usage.countSource}\n`,
+    `[context] before=${usage.historyTokensBefore} after=${usage.historyTokensAfter} sources=${usage.sourceTokens} total=${usage.totalInputTokens} accuracy=${usage.countAccuracy}:${usage.countSource}\n`,
   );
+  for (const source of report.sources) {
+    process.stderr.write(
+      `[context-source] id=${source.id} version=${source.version} tokens=${source.tokens} included=${source.included ? 1 : 0}\n`,
+    );
+  }
   if (report.actions.length > 0) {
     const actions = report.actions
       .map((action) => (action.detail ? `${action.kind}(${action.detail})` : action.kind))

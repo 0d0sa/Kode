@@ -38,6 +38,16 @@ class FixedCounter implements TokenCounter {
   }
 }
 
+class TextCounter implements TokenCounter {
+  async count(request: TokenCountRequest): Promise<TokenCount> {
+    return {
+      tokens: Math.ceil(JSON.stringify(request).length / 4),
+      accuracy: 'estimated',
+      source: 'test-text',
+    };
+  }
+}
+
 class FixedSummarizer implements Summarizer {
   calls = 0;
   async summarize(): Promise<SummaryResult> {
@@ -133,6 +143,55 @@ describe('ContextManager', () => {
     expect(resolution.report.actions).toEqual([]);
     expect(JSON.stringify(resolution.report)).not.toContain('hello');
     expect(summary.calls).toBe(0);
+  });
+
+  it('injects repository context into the derived current user message only', async () => {
+    const manager = new ContextManager({
+      provider,
+      counter: new TextCounter(),
+      context: {
+        windowTokens: 4000,
+        safetyReserveTokens: 0,
+        minimumOutputTokens: 50,
+      },
+    });
+    const messages: LLMMessage[] = [
+      { role: 'user', content: 'inspect this repository' },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 't1', name: 'echo', input: {} }],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 't1', content: 'done' }],
+      },
+    ];
+    const resolution = await manager.resolve({
+      ...requestBase,
+      messages,
+      sources: [
+        {
+          id: 'repository',
+          version: 'generation-1',
+          priority: 'high',
+          content: 'Stack\n- TypeScript\n- <untrusted-name>',
+          maxTokens: 200,
+          strategy: 'truncate-structured',
+          placement: 'current-user-prefix',
+        },
+      ],
+    });
+
+    expect(messages[0]?.content).toBe('inspect this repository');
+    expect(JSON.stringify(resolution.messages[0])).toContain('kode-context-source');
+    expect(JSON.stringify(resolution.messages[0])).toContain('&lt;untrusted-name&gt;');
+    expect(resolution.messages[2]).toEqual(messages[2]);
+    expect(resolution.report.sources[0]).toMatchObject({
+      id: 'repository',
+      version: 'generation-1',
+      included: true,
+    });
+    expect(resolution.report.usage.sourceTokens).toBeGreaterThan(0);
   });
 
   it('summarizes old complete step groups, preserves root text, and reuses checkpoint', async () => {

@@ -8,6 +8,20 @@ const DEFAULT_IGNORES = ['**/.git/**', '**/node_modules/**', '**/dist/**'];
 const MAX_RG_BUFFER_BYTES = 5 * 1024 * 1024;
 const MAX_FALLBACK_FILE_BYTES = 1024 * 1024;
 
+export interface WorkspaceDiscoveryQuery {
+  root: string;
+  pattern?: string;
+  ignore?: string[];
+  hidden?: boolean;
+  limit: number;
+  signal: AbortSignal;
+}
+
+export interface WorkspaceDiscoveryResult {
+  files: string[];
+  truncated: boolean;
+}
+
 export interface GlobQuery {
   root: string;
   pattern: string;
@@ -105,11 +119,30 @@ async function rgGlob(query: GlobQuery): Promise<GlobSearchResult> {
 }
 
 async function nodeGlob(query: GlobQuery): Promise<GlobSearchResult> {
+  const discovered = await discoverWorkspaceFiles({
+    root: query.root,
+    pattern: query.pattern,
+    hidden: query.hidden,
+    limit: query.limit,
+    signal: query.signal,
+    ...(query.ignore ? { ignore: query.ignore } : {}),
+  });
+  return {
+    files: discovered.files,
+    truncated: discovered.truncated,
+    backend: 'node',
+  };
+}
+
+/** Shared discovery path for search and the Phase 4 indexer. */
+export async function discoverWorkspaceFiles(
+  query: WorkspaceDiscoveryQuery,
+): Promise<WorkspaceDiscoveryResult> {
   throwIfAborted(query.signal);
-  const candidates = await fg(query.pattern, {
+  const candidates = await fg(query.pattern ?? '**/*', {
     cwd: query.root,
     onlyFiles: true,
-    dot: query.hidden,
+    dot: query.hidden ?? true,
     unique: true,
     followSymbolicLinks: false,
     ignore: [...DEFAULT_IGNORES, ...(query.ignore ?? [])],
@@ -123,7 +156,6 @@ async function nodeGlob(query: GlobQuery): Promise<GlobSearchResult> {
   return {
     files: files.slice(0, query.limit),
     truncated: files.length > query.limit,
-    backend: 'node',
   };
 }
 

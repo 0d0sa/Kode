@@ -47,6 +47,7 @@ export async function runOnce(cwd: string, prompt: string, opts: RunOptions): Pr
     return 0;
   } finally {
     process.removeListener('SIGINT', onSigint);
+    await session.close();
     rl?.close();
   }
 }

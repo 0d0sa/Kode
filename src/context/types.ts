@@ -2,6 +2,24 @@ import type { LLMMessage, TokenCount, TokenCountRequest } from '../llm/types.js'
 
 export type ContextPriority = 'required' | 'high' | 'normal' | 'compressible';
 
+export interface ContextSource {
+  id: string;
+  priority: Exclude<ContextPriority, 'required'>;
+  version: string;
+  content: string;
+  maxTokens: number;
+  strategy: 'truncate-structured' | 'summarize';
+  placement: 'current-user-prefix';
+}
+
+export interface ContextSourceReport {
+  id: string;
+  version: string;
+  priority: ContextSource['priority'];
+  tokens: number;
+  included: boolean;
+}
+
 export interface TokenBudget {
   contextWindowTokens: number;
   maxOutputTokens: number;
@@ -12,6 +30,7 @@ export interface TokenBudget {
 export interface ContextUsage {
   systemTokens: number;
   toolSchemaTokens: number;
+  sourceTokens: number;
   historyTokensBefore: number;
   historyTokensAfter: number;
   totalInputTokens: number;
@@ -20,7 +39,11 @@ export interface ContextUsage {
 }
 
 export type ContextActionKind =
-  'compact_tool_result' | 'summarize_turns' | 'drop_turn' | 'reduce_output_reserve';
+  | 'compact_tool_result'
+  | 'summarize_turns'
+  | 'drop_turn'
+  | 'drop_context_source'
+  | 'reduce_output_reserve';
 
 export interface ContextAction {
   kind: ContextActionKind;
@@ -42,6 +65,7 @@ export interface ContextCheckpoint {
 export interface ContextReport {
   budget: TokenBudget;
   usage: ContextUsage;
+  sources: ContextSourceReport[];
   actions: ContextAction[];
   checkpointReused: boolean;
   summaryCalls: number;
@@ -57,6 +81,7 @@ export interface ContextResolution {
 
 export interface ContextResolveRequest extends TokenCountRequest {
   requestedOutputTokens: number;
+  sources?: readonly ContextSource[];
   signal?: AbortSignal;
 }
 

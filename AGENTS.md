@@ -38,11 +38,12 @@ pnpm build
 ## Project layout
 
 - `src/agent/` — agent loop, prompt, context window (planner in later phases)
+- `src/codebase/` — multi-language parsing, index generations, graph and overview
 - `src/llm/` — providers (anthropic + openai-compatible), message conversion, factory
 - `src/tools/` — registry, path/mutation/undo services, search and file/shell tools
 - `src/permission/` — ordered policy evaluation, scoped grants, audit and redaction
 - `src/config/` — config schema, discovery, loader, env
 - `src/infra/` — logger and other infra
 - `src/cli/` — commander entry + commands
-- `docs/` — implementation plan, Phase 0–3 designs, examples
+- `docs/` — implementation plan, Phase 0–4 designs, examples
 - `tests/` — unit tests and fixtures

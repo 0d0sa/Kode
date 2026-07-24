@@ -70,6 +70,7 @@ export const writeFileTool: Tool<z.infer<typeof schema>> = {
         ],
         signal: ctx.signal,
         undoStore: ctx.undoStore,
+        ...(ctx.markFilesDirty ? { onCommitted: ctx.markFilesDirty } : {}),
       });
       const changed = result.files[0];
       return {

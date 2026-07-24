@@ -144,6 +144,32 @@ describe('loadConfig', () => {
     expect(config.agent?.context?.windowTokens).toBe(128000);
   });
 
+  it('parses Phase 4 codebase settings and keeps semantic search disabled', () => {
+    const f = join(workdir, 'kode.jsonc');
+    writeFileSync(
+      f,
+      JSON.stringify({
+        codebase: {
+          enabled: true,
+          languages: ['typescript', 'python', 'go', 'rust'],
+          cache: 'global',
+          refresh: 'incremental',
+          maxFiles: 50000,
+          maxFileBytes: 2097152,
+          parseConcurrency: 4,
+          overviewTokens: 1800,
+          semanticSearch: { enabled: false },
+        },
+      }),
+    );
+    const { config } = loadConfig([f]);
+    expect(config.codebase?.languages).toContain('rust');
+    expect(config.codebase?.semanticSearch?.enabled).toBe(false);
+
+    writeFileSync(f, JSON.stringify({ codebase: { semanticSearch: { enabled: true } } }));
+    expect(() => loadConfig([f])).toThrow(/semanticSearch/);
+  });
+
   it('rejects a minimum output reserve larger than the configured context window', () => {
     const f = join(workdir, 'kode.jsonc');
     writeFileSync(

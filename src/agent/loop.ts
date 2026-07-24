@@ -24,12 +24,14 @@ export async function* agentLoop(opts: AgentRunOptions): AsyncIterable<AgentEven
     const tools = registry.specs();
 
     try {
+      const sources = opts.contextSources ? await opts.contextSources(opts.signal) : undefined;
       const resolution = await opts.contextManager.resolve({
         model: opts.model,
         system: opts.system,
         tools,
         messages: history,
         requestedOutputTokens: opts.maxTokens,
+        ...(sources?.length ? { sources } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),
       });
       yield { type: 'context', report: resolution.report };

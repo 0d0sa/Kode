@@ -59,6 +59,7 @@ export async function startRepl(cwd: string, opts: { debug?: boolean } = {}): Pr
     }
     await session.runTurn(line);
   }
+  await session.close();
   rl.close();
   return 0;
 }

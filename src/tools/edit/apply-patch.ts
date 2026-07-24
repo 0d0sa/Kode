@@ -60,6 +60,7 @@ export const applyPatchTool: Tool<z.infer<typeof schema>> = {
         mutations: plan.mutations,
         signal: ctx.signal,
         undoStore: ctx.undoStore,
+        ...(ctx.markFilesDirty ? { onCommitted: ctx.markFilesDirty } : {}),
       });
       return {
         ok: true,

@@ -79,28 +79,28 @@
 
 模块 ID 用于路线图引用。
 
-| ID  | 模块              | 层         | 职责一句话                                        |
-| --- | ----------------- | ---------- | ------------------------------------------------- |
-| M01 | Agent Loop        | Agent      | 编排 LLM↔工具的循环，产出 AgentEvent              |
-| M02 | Prompt Manager    | Agent      | 组装 system prompt、工具说明、代码库摘要          |
-| M03 | Task Planner      | Agent      | Todo 列表、子任务分解、日志式进度跟踪             |
-| M04 | LLM Provider      | Core       | 多模型抽象、流式、重试、token 计数、函数调用      |
-| M05 | Tool Registry     | Core       | 工具注册、schema 校验、并发调度、只读判定         |
-| M06 | Permission System | Core       | 确认门、危险操作拦截、放权配置、审计日志          |
-| M07 | Context Manager   | Core       | token 预算、压缩、窗口管理、消息裁剪              |
-| M08 | Session Store     | Core       | 会话持久化、resume、checkpoint、回放              |
-| M09 | File Tools        | Tools      | read / write / edit / glob / grep（封装 ripgrep） |
-| M10 | Shell Tool        | Tools      | bash 执行、超时、输出截断、依赖工具白名单         |
-| M11 | Edit Engine       | Tools      | 整文件替换、字符串精确替换、diff/patch 应用       |
-| M12 | Codebase Index    | Tools      | 文件树、git ignore 识别、符号表（tree-sitter）    |
-| M13 | Semantic Search   | Tools      | （可选）嵌入索引 + 向量检索，跨文件定位           |
-| M14 | Todo Tool         | Tools      | 供 agent 自管理的结构化任务列表（M03 的工具面）   |
-| M15 | CLI / REPL        | Interface  | argv 解析、REPL、流式输出渲染                     |
-| M16 | Renderer          | Interface  | markdown、代码高亮、diff、进度/确认 UI（Ink）     |
-| M17 | Config System     | Foundation | kode.jsonc、`.env`、模型/规则/放权配置            |
-| M18 | Logger            | Foundation | 结构化日志（pino）、调试模式、事件落盘            |
-| M19 | Build & Dist      | Foundation | tsup/bun 打包、单可执行分发、跨平台脚本           |
-| M20 | Telemetry         | Foundation | （可选）指标、错误上报（本地、可关）              |
+| ID  | 模块              | 层         | 职责一句话                                               |
+| --- | ----------------- | ---------- | -------------------------------------------------------- |
+| M01 | Agent Loop        | Agent      | 编排 LLM↔工具的循环，产出 AgentEvent                     |
+| M02 | Prompt Manager    | Agent      | 组装 system prompt、工具说明、代码库摘要                 |
+| M03 | Task Planner      | Agent      | Todo 列表、子任务分解、日志式进度跟踪                    |
+| M04 | LLM Provider      | Core       | 多模型抽象、运行时切换、流式、重试、token 计数、函数调用 |
+| M05 | Tool Registry     | Core       | 工具注册、schema 校验、并发调度、只读判定                |
+| M06 | Permission System | Core       | 确认门、危险操作拦截、放权配置、审计日志                 |
+| M07 | Context Manager   | Core       | token 预算、压缩、窗口管理、消息裁剪                     |
+| M08 | Session Store     | Core       | 会话持久化、resume、checkpoint、回放                     |
+| M09 | File Tools        | Tools      | read / write / edit / glob / grep（封装 ripgrep）        |
+| M10 | Shell Tool        | Tools      | bash 执行、超时、输出截断、依赖工具白名单                |
+| M11 | Edit Engine       | Tools      | 整文件替换、字符串精确替换、diff/patch 应用              |
+| M12 | Codebase Index    | Tools      | 文件树、git ignore 识别、符号表（tree-sitter）           |
+| M13 | Semantic Search   | Tools      | （可选）嵌入索引 + 向量检索，跨文件定位                  |
+| M14 | Todo Tool         | Tools      | 供 agent 自管理的结构化任务列表（M03 的工具面）          |
+| M15 | CLI / REPL        | Interface  | argv 解析、REPL、模型设置命令、流式输出渲染              |
+| M16 | Renderer          | Interface  | markdown、代码高亮、diff、进度/确认 UI（Ink）            |
+| M17 | Config System     | Foundation | kode.jsonc、`.env`、模型 profile、交互设置与放权配置     |
+| M18 | Logger            | Foundation | 结构化日志（pino）、调试模式、事件落盘                   |
+| M19 | Build & Dist      | Foundation | tsup/bun 打包、单可执行分发、跨平台脚本                  |
+| M20 | Telemetry         | Foundation | （可选）指标、错误上报（本地、可关）                     |
 
 ### 5.1 关键模块补充说明
 
@@ -316,14 +316,25 @@ export type ApprovalResult = { decision: Decision; scope?: 'once' | 'session' };
 - **验收**：在一个大型仓库跑一个会调 30+ 工具的任务，仍稳定不超限。
 - **难点**：摘要引入的事实漂移；需要“永不压缩”的关键消息标记。
 
-### Phase 4 — 代码库理解 ⏱ ~4 天
+### Phase 4 — 代码库理解 ⏱ ~6–7 天
+
+> 详细执行方案与已确认设计决策见 [`Phase4.md`](./Phase4.md)。
+> **状态：已实现（2026-07-24）**。确认组合
+> `D1-B / D2-B / D3-B / D4-B / D5-B / D6-B / D7-A / D8-B`
+> 已落地，核心索引、缓存、上下文与工具路径均有自动化覆盖。
 
 - **目标**：自动理解项目结构、符号、依赖关系。
-- **实现模块**：M12 M13(可选) M02(注入概览)
+- **实现模块**：M12 M02(注入概览)；M13 延后
 - **交付物**：
   - 仓库概览（文件树 + 类型/栈识别 + 入口文件 + 模块依赖图）注入 prompt；
-  - tree-sitter 符号表：`find_definition` `list_symbols` 工具；-（可选）向量检索：`semantic_search`（嵌入入库、sqlite-vec / hnswlib）；
-  - 增量索引 + gitignore 过滤。
+  - 内置 TS/JS、Python、Go、Rust grammar/query pack，使用
+    `web-tree-sitter` + 固定版本 WASM；
+  - `list_symbols`、`find_definition`、`find_references`、
+    `module_dependencies` 四个只读工具；
+  - `~/.kode/index/` 全局 SQLite generation 缓存、cache-first 增量索引和
+    gitignore 过滤；
+  - 仓库概览作为 Phase 3 中有界、可替换的高优先级 context source；
+  - Phase 4 不实现 embedding/`semantic_search`，M13 后续单独设计。
 - **验收**：“定位 `handleError` 的所有调用处并解释其异常处理策略”可一次完成。
 - **难点**：多语言 grammar 安装与打包体积；索引冷启动耗时。
 
@@ -339,16 +350,43 @@ export type ApprovalResult = { decision: Decision; scope?: 'once' | 'session' };
 - **验收**：“加一个新 endpoint 并补单测，最后 `pnpm test`” 整条流程自走完成。
 - **难点**：子任务失败回退策略；防止陷入循环。
 
-### Phase 6 — 交互体验（TUI / 多模型 / 会话）⏱ ~4 天
+### Phase 6 — 交互体验（TUI / 多模型 / 会话）⏱ ~5–6 天
 
 - **目标**：从「能用」到「好用」。
-- **实现模块**：M16(Ink) M04(多 provider) M08
+- **实现模块**：M16(Ink) M04(多 provider) M08 M15 M17
 - **交付物**：
   - Ink 富 TUI：流式 markdown、代码高亮、diff view、确认框、进度条；
-  - 多 provider 切换（Anthropic / OpenAI / 本地 Ollama-compatible）；
+  - 首次启动或缺少模型配置时进入交互式 Setup Wizard，而不是只返回
+    `No model configured`；
+  - 在 CLI/TUI 内使用 `/model` 查看当前模型、列出可用模型并切换；使用
+    `/provider` 新增、检查和切换 Anthropic、OpenAI-compatible、本地
+    Ollama/vLLM 等 provider；
+  - 模型/provider 设置支持三种作用域：仅当前会话、当前项目
+    `kode.jsonc`、全局 `~/.kode/kode.jsonc`；
+  - 提供非交互入口，例如 `kode model list`、`kode model set` 和启动参数
+    `--provider` / `--model`，便于脚本与 CI 使用；
+  - provider profile 保存 endpoint、模型和能力信息；API Key 默认只引用环境变量
+    或系统 Keychain，不把明文密钥写入普通配置、日志或会话文件；
+  - 切换模型时重新创建 provider、重新解析 context window 并使旧 token
+    checkpoint 失效，同时保留原始会话历史；正在执行模型/摘要/工具调用时禁止切换；
+  - 切换到不同云 provider 前提示数据边界变化；目标模型不支持 tool-use 时禁止进入
+    coding-agent 模式并解释原因；
   - 会话保存/resume（`--resume <id>`）、checkpoint。
-- **验收**：中断/退出后能在另一终端 `kode --resume <id>` 继续。
-- **难点**：TUI 与日志/输出的并存（alt buffer、滚动与流式冲突）。
+- **验收**：
+  1. 删除项目模型配置后启动 `kode`，可在向导中选择 provider/model 并完成首轮对话；
+  2. 在 REPL 中执行 `/model`，从 Anthropic 切换到 OpenAI-compatible mock，
+     下一轮请求使用新 provider，原始历史仍在且旧 context checkpoint 不再复用；
+  3. “仅会话”切换不修改文件，“项目”只修改当前项目配置，“全局”只修改
+     `~/.kode/kode.jsonc`；
+  4. 中断/退出后能在另一终端 `kode --resume <id>` 继续，并恢复该会话绑定的模型
+     profile；
+  5. 配置、日志、debug 和 session store 中均不出现测试 API Key 明文。
+- **难点**：TUI 与日志/输出的并存（alt buffer、滚动与流式冲突）；模型切换后的
+  history/tool-use 兼容性；配置原子写入和 Keychain 的跨平台差异。
+
+> **Phase 6 设计前置要求**：实现前先创建 `docs/Phase6.md`，由项目负责人确认
+> Setup Wizard 交互形式、凭据存储方式、模型列表来源、配置作用域默认值，以及切换
+> provider 时保留历史还是创建会话分支。未确认这些数据与安全边界前，不进入实现。
 
 ### Phase 7 — 工程化与发布 ⏱ ~3 天
 
@@ -364,16 +402,16 @@ export type ApprovalResult = { decision: Decision; scope?: 'once' | 'session' };
 
 ### 路线图总览
 
-| Phase | 主题             | 时长  | 里程碑           |
-| ----- | ---------------- | ----- | ---------------- |
-| 0     | 脚手架           | ~2d   | `kode --version` |
-| 1     | 最小 Agent       | ~4d   | 能改 README      |
-| 2     | 工具/权限        | ~5–6d | 批量改 TODO      |
-| 3     | 上下文管理       | ~4–5d | 长任务不爆 token |
-| 4     | 代码库理解       | ~4d   | 跨文件定位       |
-| 5     | 规划/自检        | ~3d   | 自动补单测       |
-| 6     | 体验/多模型/会话 | ~4d   | resume 续会话    |
-| 7     | 工程化/发布      | ~3d   | 单命令安装       |
+| Phase | 主题             | 时长  | 里程碑                |
+| ----- | ---------------- | ----- | --------------------- |
+| 0     | 脚手架           | ~2d   | `kode --version`      |
+| 1     | 最小 Agent       | ~4d   | 能改 README           |
+| 2     | 工具/权限        | ~5–6d | 批量改 TODO           |
+| 3     | 上下文管理       | ~4–5d | 长任务不爆 token      |
+| 4     | 代码库理解       | ~6–7d | 跨文件定位            |
+| 5     | 规划/自检        | ~3d   | 自动补单测            |
+| 6     | 体验/多模型/会话 | ~5–6d | CLI 内选模型并 resume |
+| 7     | 工程化/发布      | ~3d   | 单命令安装            |
 
 **MVP（对外可用）= Phase 1–3 合并体**，约 2.5–3 周。
 
@@ -443,7 +481,7 @@ Kode/
 | 工具副作用不可逆         | 误删/误执行           | 默认 confirm + `~/.kode/undo/` 全局快照；不自动更改 Git 状态 |
 | 多模型 tool-use 行为差异 | 切模型即崩            | provider 抽象层做归一 + 集成测试矩阵                         |
 | 流式中断/取消不一致      | 卡死/泄漏子进程       | AbortSignal 贯穿到底；子进程随取消 kill                      |
-| tree-sitter 打包过大     | 安装臃肿              | grammar 按语言延迟加载/按需下载                              |
+| tree-sitter 打包过大     | 安装臃肿              | 固定五组 grammar 随包发布，仅初始化仓库实际检测到的语言      |
 | 长任务循环不收敛         | token/时间爆炸        | maxSteps 硬上限 + 重复检测 + 步数预算                        |
 | Windows shell 兼容       | Windows 用户异常      | shell 工具走 `cmd`/pwsh 分支、统一 UTF-8 输出                |
 
@@ -453,7 +491,7 @@ Kode/
 - **M1（Phase 1 末·MVP 起点）**：完成 README 修改类任务。
 - **M3（Phase 3 末·MVP 完成）**：Kode-MVP 可对外发布，能跑真实仓库的中小任务。
 - **M5（Phase 5 末）**：能独立完成“加测试 + 跑测试”闭环。
-- **M6（Phase 6 末）**：TUI 体验稳定、多模型、resume 齐备。
+- **M6（Phase 6 末）**：TUI 体验稳定，可在 CLI 内配置/切换 provider 与模型，并可 resume。
 - **M7（Phase 7 末·v1.0）**：单命令安装、文档完整、回放测试覆盖核心路径。
 
 ## 12. 后续可拆分文档

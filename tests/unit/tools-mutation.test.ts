@@ -63,6 +63,27 @@ describe('file mutation service', () => {
     expect(store.groups).toHaveLength(0);
   });
 
+  it('notifies the index only after a mutation group commits', async () => {
+    const path = join(workdir, 'notify.txt');
+    writeFileSync(path, 'before');
+    const changed: string[][] = [];
+    await applyFileMutations({
+      cwd: workdir,
+      runId: 'run',
+      mutations: [
+        {
+          path,
+          content: Buffer.from('after'),
+          expectedSha256: sha256('before'),
+        },
+      ],
+      signal,
+      undoStore: store,
+      onCommitted: (paths) => changed.push([...paths]),
+    });
+    expect(changed).toEqual([[path]]);
+  });
+
   it('refuses undo when a file changed after the mutation', async () => {
     const path = join(workdir, 'a.txt');
     writeFileSync(path, 'old');

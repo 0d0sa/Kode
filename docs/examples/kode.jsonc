@@ -1,5 +1,5 @@
 {
-  // Kode 配置示例（Phase 3）。
+  // Kode 配置示例（Phase 4）。
   // provider: "anthropic"（Anthropic 直连或兼容网关）| "openai" | "local"（OpenAI 兼容端点）
   "version": 1,
   "model": {
@@ -38,10 +38,29 @@
       "summaryTriggerRatio": 0.8,
     },
   },
+  "codebase": {
+    "enabled": true,
+    "languages": ["typescript", "javascript", "python", "go", "rust"],
+    // 缓存写入 ~/.kode/index/；首次构建后，后续启动会复用。
+    "cache": "global",
+    "refresh": "incremental",
+    "maxFiles": 50000,
+    "maxFileBytes": 2097152,
+    "parseConcurrency": 4,
+    "overviewTokens": 1800,
+    // Phase 4 不上传源码或生成 embedding。
+    "semanticSearch": {
+      "enabled": false,
+    },
+  },
   "permissions": {
     "default": "confirm",
     "overrides": {
       "read_file": "allow",
+      "list_symbols": "allow",
+      "find_definition": "allow",
+      "find_references": "allow",
+      "module_dependencies": "allow",
     },
     // 规则按顺序匹配，第一条命中即生效。可组合工具、路径和简单命令前缀。
     // 工作区外路径在未命中显式规则时始终要求确认。
@@ -55,7 +74,14 @@
       {
         "id": "allow-project-search",
         "decision": "allow",
-        "tools": ["glob", "grep"],
+        "tools": [
+          "glob",
+          "grep",
+          "list_symbols",
+          "find_definition",
+          "find_references",
+          "module_dependencies",
+        ],
         "paths": ["**/*"],
       },
       {

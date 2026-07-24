@@ -74,11 +74,37 @@ export const AgentConfigSchema = z.object({
   context: AgentContextConfigSchema.optional(),
 });
 
+export const CodebaseLanguageSchema = z.enum(['typescript', 'javascript', 'python', 'go', 'rust']);
+
+export const CodebaseConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  languages: z.array(CodebaseLanguageSchema).min(1).optional(),
+  cache: z.enum(['global', 'memory']).optional(),
+  refresh: z.enum(['incremental', 'full']).optional(),
+  maxFiles: z.number().int().min(1).max(200_000).optional(),
+  maxFileBytes: z
+    .number()
+    .int()
+    .min(1024)
+    .max(20 * 1024 * 1024)
+    .optional(),
+  parseConcurrency: z.number().int().min(1).max(16).optional(),
+  overviewTokens: z.number().int().min(128).max(8192).optional(),
+  ignore: z.array(z.string().min(1)).max(100).optional(),
+  semanticSearch: z
+    .object({
+      /** Phase 4 deliberately defers M13. */
+      enabled: z.literal(false).optional(),
+    })
+    .optional(),
+});
+
 export const ConfigSchema = z
   .object({
     version: z.literal(1).default(1),
     model: ModelConfigSchema.optional(),
     agent: AgentConfigSchema.optional(),
+    codebase: CodebaseConfigSchema.optional(),
     permissions: PermissionsSchema.optional(),
     rules: z.array(z.string()).optional(),
     includeCoAuthoredBy: z.boolean().optional(),
@@ -106,3 +132,5 @@ export type Permissions = z.infer<typeof PermissionsSchema>;
 export type PermissionRule = z.infer<typeof PermissionRuleSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 export type AgentContextConfig = z.infer<typeof AgentContextConfigSchema>;
+export type CodebaseLanguage = z.infer<typeof CodebaseLanguageSchema>;
+export type CodebaseConfig = z.infer<typeof CodebaseConfigSchema>;

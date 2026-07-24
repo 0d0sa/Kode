@@ -27,6 +27,8 @@ export interface ToolContext {
   runId?: string;
   toolCallId?: string;
   undoStore?: UndoStore;
+  /** Notify the Phase 4 index only after a mutation group commits successfully. */
+  markFilesDirty?(paths: readonly string[]): void;
   /** Canonical paths approved by the registry for this dispatch. */
   authorizedPaths?: ReadonlySet<string>;
 }

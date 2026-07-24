@@ -44,6 +44,7 @@ export async function applyFileMutations(options: {
   mutations: FileMutation[];
   signal: AbortSignal;
   undoStore: UndoStore;
+  onCommitted?: (paths: readonly string[]) => void;
 }): Promise<MutationResult> {
   throwIfAborted(options.signal);
   if (!options.mutations.length) throw new Error('No file mutations were requested');
@@ -102,7 +103,7 @@ export async function applyFileMutations(options: {
     throw error;
   }
 
-  return {
+  const result: MutationResult = {
     undoId: group.id,
     files: prepared.map(({ mutation, snapshot }) => ({
       path: mutation.path,
@@ -112,12 +113,15 @@ export async function applyFileMutations(options: {
       ...(mutation.content ? { afterSha256: sha256(mutation.content) } : {}),
     })),
   };
+  options.onCommitted?.(result.files.map((file) => file.path));
+  return result;
 }
 
 export async function undoLatest(
   cwd: string,
   store: UndoStore,
   signal: AbortSignal,
+  onCommitted?: (paths: readonly string[]) => void,
 ): Promise<UndoGroup | null> {
   throwIfAborted(signal);
   const group = await store.latest(cwd);
@@ -141,6 +145,7 @@ export async function undoLatest(
   throwIfAborted(signal);
   await restoreSnapshots(group.snapshots);
   await store.markUndone(group);
+  onCommitted?.(group.snapshots.map((snapshot) => snapshot.path));
   return group;
 }
 

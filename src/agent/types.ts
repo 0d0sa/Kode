@@ -1,5 +1,5 @@
 import type { ContextManager } from '../context/manager.js';
-import type { ContextReport } from '../context/types.js';
+import type { ContextReport, ContextSource } from '../context/types.js';
 import type { LLMMessage, LLMProvider } from '../llm/types.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ToolContext, ToolResult } from '../tools/types.js';
@@ -25,6 +25,7 @@ export interface AgentRunOptions {
   messages: LLMMessage[];
   maxSteps: number;
   contextManager: ContextManager;
+  contextSources?: (signal?: AbortSignal) => Promise<readonly ContextSource[]>;
   ctx: ToolContext;
   maxTokens: number;
   temperature?: number;
