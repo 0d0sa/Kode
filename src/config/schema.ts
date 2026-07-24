@@ -25,9 +25,22 @@ export const ModelConfigSchema = z
 
 export const PermissionDecisionSchema = z.enum(['allow', 'confirm', 'deny']);
 
+export const PermissionRuleSchema = z
+  .object({
+    id: z.string().min(1),
+    decision: PermissionDecisionSchema,
+    tools: z.array(z.string().min(1)).min(1).optional(),
+    paths: z.array(z.string().min(1)).min(1).optional(),
+    commandPrefixes: z.array(z.string().min(1)).min(1).optional(),
+  })
+  .refine((rule) => rule.tools || rule.paths || rule.commandPrefixes, {
+    message: 'permission rule must define at least one matcher',
+  });
+
 export const PermissionsSchema = z.object({
   default: PermissionDecisionSchema.optional(),
   overrides: z.record(z.string(), PermissionDecisionSchema).optional(),
+  rules: z.array(PermissionRuleSchema).optional(),
 });
 
 export const AgentConfigSchema = z.object({
@@ -48,4 +61,5 @@ export const ConfigSchema = z.object({
 export type Config = z.infer<typeof ConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type Permissions = z.infer<typeof PermissionsSchema>;
+export type PermissionRule = z.infer<typeof PermissionRuleSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;

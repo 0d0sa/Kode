@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { MemoryAuditSink } from '../../src/permission/audit.js';
+import type { PermissionPath } from '../../src/permission/types.js';
+import { createDefaultRegistry } from '../../src/tools/index.js';
 import { ToolRegistry } from '../../src/tools/registry.js';
 import {
   toInputSchema,
@@ -46,6 +49,22 @@ function ctx(overrides: Partial<ToolContext> = {}): ToolContext {
 }
 
 describe('ToolRegistry.dispatch', () => {
+  it('registers all Phase 2 tools by default', () => {
+    expect(
+      createDefaultRegistry()
+        .specs()
+        .map((spec) => spec.name),
+    ).toEqual([
+      'read_file',
+      'glob',
+      'grep',
+      'write_file',
+      'replace_in_file',
+      'apply_patch',
+      'run_command',
+    ]);
+  });
+
   it('returns an error result for unknown tools', async () => {
     const r = new ToolRegistry();
     const res = await r.dispatch('nope', {}, ctx());
@@ -170,5 +189,96 @@ describe('ToolRegistry.dispatch', () => {
     expect(specs[0]).toMatchObject({ name: 'read_thing', description: 'read-only' });
     expect(specs[0]?.input_schema).toMatchObject({ type: 'object' });
     expect(specs[0]?.input_schema).not.toHaveProperty('$schema');
+  });
+
+  it('scopes session approval to the requested tool path', async () => {
+    const scopedTool: Tool<z.infer<typeof writeSchema>> = {
+      ...writeTool,
+      name: 'scoped_write',
+      permission(input) {
+        const path: PermissionPath = {
+          canonical: `/tmp/${input.path}`,
+          relative: input.path,
+          outsideWorkspace: false,
+        };
+        return { kind: 'write', paths: [path] };
+      },
+    };
+    const registry = new ToolRegistry();
+    registry.register(scopedTool);
+    const approved = new Set<string>();
+    let asks = 0;
+    const context = ctx({
+      isSessionApproved: (scope) => approved.has(scope),
+      approveSession: (scope) => approved.add(scope),
+      approve: async () => {
+        asks++;
+        return { decision: 'allow', scope: 'session' };
+      },
+    });
+    await registry.dispatch('scoped_write', { path: 'a', data: '1' }, context);
+    await registry.dispatch('scoped_write', { path: 'a', data: '2' }, context);
+    await registry.dispatch('scoped_write', { path: 'b', data: '3' }, context);
+    expect(asks).toBe(2);
+  });
+
+  it('records confirm and outcome audit events without file content', async () => {
+    const audit = new MemoryAuditSink();
+    const registry = new ToolRegistry({}, { audit });
+    registry.register(writeTool);
+    const res = await registry.dispatch(
+      'write_thing',
+      { path: 'a', data: 'super-secret-source' },
+      ctx({ approve: async () => ({ decision: 'allow', scope: 'once' }), runId: 'run-1' }),
+    );
+    expect(res.ok).toBe(true);
+    expect(audit.events.map((event) => event.decision)).toEqual(['confirm', 'allow']);
+    expect(audit.events[1]).toMatchObject({
+      runId: 'run-1',
+      source: 'user',
+      scope: 'once',
+      outcome: 'ok',
+    });
+  });
+
+  it('audits a request that was already aborted', async () => {
+    const audit = new MemoryAuditSink();
+    const registry = new ToolRegistry({}, { audit });
+    registry.register(readTool);
+    const ac = new AbortController();
+    ac.abort();
+    const result = await registry.dispatch('read_thing', { path: 'a' }, ctx({ signal: ac.signal }));
+    expect(result.ok).toBe(false);
+    expect(audit.events).toHaveLength(1);
+    expect(audit.events[0]).toMatchObject({ decision: 'deny', outcome: 'aborted' });
+  });
+
+  it('passes canonical permission targets to tool execution', async () => {
+    const guarded: Tool<z.infer<typeof readSchema>> = {
+      ...readTool,
+      name: 'guarded_read',
+      permission() {
+        return {
+          kind: 'read',
+          paths: [
+            {
+              canonical: '/tmp/a',
+              relative: 'a',
+              outsideWorkspace: false,
+            },
+          ],
+        };
+      },
+      async execute(_input, context) {
+        return {
+          ok: context.authorizedPaths?.has('/tmp/a') === true,
+          output: 'checked',
+        };
+      },
+    };
+    const registry = new ToolRegistry();
+    registry.register(guarded);
+    const result = await registry.dispatch('guarded_read', { path: 'a' }, ctx());
+    expect(result.ok).toBe(true);
   });
 });

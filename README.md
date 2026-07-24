@@ -2,9 +2,10 @@
 
 A local coding agent (TypeScript CLI).
 
-> Status: **Phase 1 (minimum working agent)**. Kode now supports streaming chat,
-> Anthropic/OpenAI-compatible providers, tool use, an interactive REPL, and one-shot runs.
-> See `docs/implementation-plan.md`, `docs/Phase0.md`, and `docs/Phase1.md`.
+> Status: **Phase 2 (safe repository tools)**. Kode supports streaming chat,
+> Anthropic/OpenAI-compatible providers, repository search and editing, scoped
+> permissions, audit logs, and undo. See `docs/implementation-plan.md` and the
+> phase documents in `docs/`.
 
 ## Requirements
 
@@ -34,6 +35,27 @@ node dist/index.js repl
 node dist/index.js run "read package.json and summarize it"
 ```
 
+Inside the REPL, `/undo` restores the latest successful file-edit group after
+confirmation. `/help`, `/clear`, `/exit`, and `/quit` are also available.
+
+## Repository tools
+
+Kode exposes seven bounded tools to the model:
+
+- `glob` and `grep` discover files and text. They prefer ripgrep and fall back
+  to a Node implementation when `rg` is unavailable.
+- `read_file` streams UTF-8 text and returns a SHA-256 hash.
+- `write_file` creates files or explicitly overwrites a file using that hash.
+- `replace_in_file` performs exact, hash-guarded replacements.
+- `apply_patch` dry-runs a multi-file unified diff before changing any target.
+- `run_command` executes a bounded, cancellable bash command.
+
+File writes use temporary-file rename, optimistic hash checks, and snapshots
+under `~/.kode/undo/`. Permission decisions and outcomes are written as
+redacted JSONL under `~/.kode/audit/`. Both stores use 30-day lazy retention:
+old entries are cleaned when new records are written, and undo additionally keeps
+at most 100 edit groups per project.
+
 ## Configuration
 
 Kode reads `kode.jsonc` from the current directory upward, falling back to
@@ -41,3 +63,10 @@ Kode reads `kode.jsonc` from the current directory upward, falling back to
 API keys in `.env` / `.env.local` and referencing them via `model.apiKeyEnv`.
 Inline `model.apiKey` is supported for compatibility but should not be committed;
 `kode config` always redacts it. A `local` provider must set `model.baseURL`.
+
+Permissions can still use `default` and per-tool `overrides`. Phase 2 also
+supports ordered `rules` matching `tools`, `paths`, and safe
+`commandPrefixes`; the first matching rule wins. Workspace reads are allowed
+by default, while writes, commands, and workspace-external access require
+confirmation unless an explicit rule decides otherwise. See
+`docs/examples/kode.jsonc` for a complete example.

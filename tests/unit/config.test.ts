@@ -87,4 +87,37 @@ describe('loadConfig', () => {
     const { config } = loadConfig([near, far]);
     expect(config.rules).toEqual(['c']);
   });
+
+  it('parses ordered Phase 2 permission rules', () => {
+    const f = join(workdir, 'kode.jsonc');
+    writeFileSync(
+      f,
+      JSON.stringify({
+        permissions: {
+          rules: [
+            {
+              id: 'allow-tests',
+              decision: 'allow',
+              tools: ['run_command'],
+              commandPrefixes: ['pnpm test'],
+            },
+          ],
+        },
+      }),
+    );
+    const { config } = loadConfig([f]);
+    expect(config.permissions?.rules?.[0]).toMatchObject({
+      id: 'allow-tests',
+      decision: 'allow',
+    });
+  });
+
+  it('rejects permission rules without a matcher', () => {
+    const f = join(workdir, 'kode.jsonc');
+    writeFileSync(
+      f,
+      JSON.stringify({ permissions: { rules: [{ id: 'bad', decision: 'allow' }] } }),
+    );
+    expect(() => loadConfig([f])).toThrow(/matcher/);
+  });
 });

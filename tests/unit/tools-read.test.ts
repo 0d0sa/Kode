@@ -30,7 +30,9 @@ describe('read_file', () => {
     writeFileSync(join(workdir, 'a.txt'), 'alpha\nbeta\ngamma');
     const res = await readFileTool.execute({ path: 'a.txt' }, ctx());
     expect(res.ok).toBe(true);
-    expect(res.output).toBe('1: alpha\n2: beta\n3: gamma');
+    expect(res.output).toContain('1: alpha\n2: beta\n3: gamma');
+    expect(res.output).toMatch(/\[sha256: [a-f0-9]{64}\]/);
+    expect(res.meta).toMatchObject({ size: 16, totalLines: 3 });
   });
 
   it('pages with offset and limit', async () => {
@@ -45,7 +47,7 @@ describe('read_file', () => {
     writeFileSync(p, 'x');
     const res = await readFileTool.execute({ path: p }, ctx());
     expect(res.ok).toBe(true);
-    expect(res.output).toBe('1: x');
+    expect(res.output).toContain('1: x');
   });
 
   it('reports missing files', async () => {
@@ -59,5 +61,20 @@ describe('read_file', () => {
     const res = await readFileTool.execute({ path: 'dir' }, ctx());
     expect(res.ok).toBe(false);
     expect(res.output).toMatch(/directory/);
+  });
+
+  it('rejects binary files', async () => {
+    writeFileSync(join(workdir, 'binary.dat'), Buffer.from([0, 1, 2, 3]));
+    const res = await readFileTool.execute({ path: 'binary.dat' }, ctx());
+    expect(res.ok).toBe(false);
+    expect(res.output).toMatch(/binary/);
+  });
+
+  it('reports a single line that exceeds the output cap without an invalid range', async () => {
+    writeFileSync(join(workdir, 'wide.txt'), 'x'.repeat(110 * 1024));
+    const res = await readFileTool.execute({ path: 'wide.txt' }, ctx());
+    expect(res.ok).toBe(true);
+    expect(res.output).toContain('line 1 exceeds the output byte cap');
+    expect(res.output).not.toContain('lines 1-0');
   });
 });

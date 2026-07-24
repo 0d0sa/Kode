@@ -39,9 +39,10 @@ pnpm build
 
 - `src/agent/` — agent loop, prompt, context window (planner in later phases)
 - `src/llm/` — providers (anthropic + openai-compatible), message conversion, factory
-- `src/tools/` — tool registry + implementations (`fs/` read, `edit/` replace, `shell/` run)
+- `src/tools/` — registry, path/mutation/undo services, search and file/shell tools
+- `src/permission/` — ordered policy evaluation, scoped grants, audit and redaction
 - `src/config/` — config schema, discovery, loader, env
 - `src/infra/` — logger and other infra
 - `src/cli/` — commander entry + commands
-- `docs/` — `implementation-plan.md`, `Phase0.md`, `Phase1.md`, examples
+- `docs/` — `implementation-plan.md`, `Phase0.md`, `Phase1.md`, `Phase2.md`, examples
 - `tests/` — unit tests and fixtures

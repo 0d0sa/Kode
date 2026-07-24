@@ -67,7 +67,7 @@ export async function* agentLoop(opts: AgentRunOptions): AsyncIterable<AgentEven
     const results: ContentBlock[] = [];
     for (const tu of toolUses) {
       yield { type: 'tool_call', name: tu.name, input: tu.input };
-      const result = await registry.dispatch(tu.name, tu.input, ctx);
+      const result = await registry.dispatch(tu.name, tu.input, ctx, tu.id);
       yield { type: 'tool_result', name: tu.name, result };
       results.push({
         type: 'tool_result',

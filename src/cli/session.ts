@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { agentLoop } from '../agent/loop.js';
 import { buildSystemPrompt } from '../agent/prompt.js';
 import { DEFAULT_CONTEXT_MESSAGES, DEFAULT_MAX_STEPS } from '../agent/types.js';
@@ -11,6 +12,9 @@ import type { LLMMessage, LLMProvider } from '../llm/types.js';
 import { createDefaultRegistry } from '../tools/index.js';
 import type { ToolRegistry } from '../tools/registry.js';
 import type { ApprovalRequest, ApprovalResult, ToolContext } from '../tools/types.js';
+import { undoLatest } from '../tools/mutation.js';
+import { FileUndoStore } from '../tools/undo/store.js';
+import type { UndoGroup, UndoStore } from '../tools/undo/types.js';
 
 export interface SessionDeps {
   provider: LLMProvider;
@@ -24,6 +28,7 @@ export interface SessionDeps {
   interactive: boolean;
   /** Required when interactive && !autoApprove: asks the user a question, returns the raw answer. */
   ask?: (question: string, signal?: AbortSignal) => Promise<string>;
+  undoStore?: UndoStore;
 }
 
 export interface SessionOptions {
@@ -48,6 +53,7 @@ export function createSession(cwd: string, opts: SessionOptions): TerminalSessio
     model,
     config,
     cwd,
+    undoStore: new FileUndoStore(),
     ...(opts.autoApprove !== undefined ? { autoApprove: opts.autoApprove } : {}),
     interactive: opts.interactive,
     ...(opts.ask ? { ask: opts.ask } : {}),
@@ -59,6 +65,7 @@ export class TerminalSession {
   private sessionApproved = new Set<string>();
   private currentAbort: AbortController | null = null;
   private system: string;
+  private readonly runId = randomUUID();
 
   constructor(private deps: SessionDeps) {
     this.system = buildSystemPrompt({
@@ -91,6 +98,61 @@ export class TerminalSession {
     return this.history.length;
   }
 
+  /** Restore the latest successful write group after an explicit user confirmation. */
+  async undoLast(): Promise<boolean> {
+    const store = this.deps.undoStore;
+    if (!store) {
+      process.stdout.write('Undo storage is unavailable.\n');
+      return false;
+    }
+    let latest: UndoGroup | null;
+    try {
+      latest = await store.latest(this.deps.cwd);
+    } catch (error) {
+      process.stdout.write(`Cannot inspect undo storage: ${(error as Error).message}\n`);
+      return false;
+    }
+    if (!latest) {
+      process.stdout.write('Nothing to undo.\n');
+      return false;
+    }
+    if (!this.deps.autoApprove) {
+      if (!this.deps.interactive || !this.deps.ask) {
+        process.stdout.write('Undo requires an interactive confirmation.\n');
+        return false;
+      }
+      const files = latest.snapshots.map((snapshot) => snapshot.path).join(', ');
+      const answer = (
+        await this.deps.ask(
+          `Restore ${latest.snapshots.length} file(s) from ${latest.id}: ${files}? [y/N] `,
+        )
+      )
+        .trim()
+        .toLowerCase();
+      if (answer !== 'y' && answer !== 'yes') {
+        process.stdout.write('Undo cancelled.\n');
+        return false;
+      }
+    }
+
+    const ac = new AbortController();
+    this.currentAbort = ac;
+    try {
+      const restored = await undoLatest(this.deps.cwd, store, ac.signal);
+      if (!restored) {
+        process.stdout.write('Nothing to undo.\n');
+        return false;
+      }
+      process.stdout.write(`Restored ${restored.snapshots.length} file(s) from ${restored.id}.\n`);
+      return true;
+    } catch (error) {
+      process.stdout.write(`Undo failed: ${(error as Error).message}\n`);
+      return false;
+    } finally {
+      this.currentAbort = null;
+    }
+  }
+
   private toolContext(signal: AbortSignal): ToolContext {
     return {
       cwd: this.deps.cwd,
@@ -99,6 +161,8 @@ export class TerminalSession {
       isSessionApproved: (n) => this.sessionApproved.has(n),
       approveSession: (n) => this.sessionApproved.add(n),
       logger,
+      runId: this.runId,
+      ...(this.deps.undoStore ? { undoStore: this.deps.undoStore } : {}),
     };
   }
 
@@ -106,9 +170,10 @@ export class TerminalSession {
     if (signal.aborted) return { decision: 'deny' };
     if (this.deps.autoApprove) return { decision: 'allow', scope: 'once' };
     if (!this.deps.interactive || !this.deps.ask) return { decision: 'deny' };
-    const summary = summarizeInput(req.tool, req.input);
+    const summary = req.summary ?? summarizeInput(req.tool, req.input);
+    const reason = req.reason ? ` (${req.reason})` : '';
     const answer = (
-      await this.deps.ask(`Allow ${req.tool} ${summary}? [y]es/[a]lways/[n]o `, signal)
+      await this.deps.ask(`Allow ${req.tool} ${summary}${reason}? [y]es/[a]lways/[n]o `, signal)
     )
       .trim()
       .toLowerCase();

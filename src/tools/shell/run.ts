@@ -25,6 +25,9 @@ export const runCommandTool: Tool<z.infer<typeof schema>> = {
   schema,
   inputSchema: toInputSchema(schema),
   isReadOnly: false,
+  permission(input) {
+    return { kind: 'execute', command: input.command };
+  },
   execute(input, ctx) {
     if (ctx.signal.aborted) {
       return Promise.resolve({ ok: false, output: 'run_command was aborted before it started.' });

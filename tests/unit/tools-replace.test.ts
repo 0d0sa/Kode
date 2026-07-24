@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { replaceInFileTool } from '../../src/tools/edit/replace.js';
 import type { ToolContext } from '../../src/tools/types.js';
+import { MemoryUndoStore } from '../../src/tools/undo/store.js';
 import { testLogger } from './helpers.js';
 
 let workdir: string;
@@ -22,6 +23,7 @@ function ctx(): ToolContext {
     isSessionApproved: () => false,
     approveSession: () => {},
     logger: testLogger,
+    undoStore: new MemoryUndoStore(),
   };
 }
 
@@ -29,7 +31,12 @@ describe('replace_in_file', () => {
   it('replaces a unique match and writes the file', async () => {
     writeFileSync(join(workdir, 'a.md'), '# Title\nold section\nend\n');
     const res = await replaceInFileTool.execute(
-      { path: 'a.md', old_string: 'old section', new_string: '## Installation\npnpm install' },
+      {
+        path: 'a.md',
+        old_string: 'old section',
+        new_string: '## Installation\npnpm install',
+        expected_sha256: hash('# Title\nold section\nend\n'),
+      },
       ctx(),
     );
     expect(res.ok).toBe(true);
@@ -41,7 +48,12 @@ describe('replace_in_file', () => {
   it('fails on zero matches without touching the file', async () => {
     writeFileSync(join(workdir, 'b.md'), 'content\n');
     const res = await replaceInFileTool.execute(
-      { path: 'b.md', old_string: 'missing', new_string: 'x' },
+      {
+        path: 'b.md',
+        old_string: 'missing',
+        new_string: 'x',
+        expected_sha256: hash('content\n'),
+      },
       ctx(),
     );
     expect(res.ok).toBe(false);
@@ -52,7 +64,12 @@ describe('replace_in_file', () => {
   it('fails on multiple matches unless replace_all is set', async () => {
     writeFileSync(join(workdir, 'c.md'), 'TODO one\nTODO two\n');
     const res = await replaceInFileTool.execute(
-      { path: 'c.md', old_string: 'TODO', new_string: 'FIXME' },
+      {
+        path: 'c.md',
+        old_string: 'TODO',
+        new_string: 'FIXME',
+        expected_sha256: hash('TODO one\nTODO two\n'),
+      },
       ctx(),
     );
     expect(res.ok).toBe(false);
@@ -63,7 +80,13 @@ describe('replace_in_file', () => {
   it('replace_all rewrites every occurrence', async () => {
     writeFileSync(join(workdir, 'd.md'), 'TODO one\nTODO two\nTODO three\n');
     const res = await replaceInFileTool.execute(
-      { path: 'd.md', old_string: 'TODO', new_string: 'FIXME', replace_all: true },
+      {
+        path: 'd.md',
+        old_string: 'TODO',
+        new_string: 'FIXME',
+        replace_all: true,
+        expected_sha256: hash('TODO one\nTODO two\nTODO three\n'),
+      },
       ctx(),
     );
     expect(res.ok).toBe(true);
@@ -73,7 +96,7 @@ describe('replace_in_file', () => {
 
   it('reports missing files', async () => {
     const res = await replaceInFileTool.execute(
-      { path: 'nope.md', old_string: 'a', new_string: 'b' },
+      { path: 'nope.md', old_string: 'a', new_string: 'b', expected_sha256: '0'.repeat(64) },
       ctx(),
     );
     expect(res.ok).toBe(false);
@@ -86,7 +109,13 @@ describe('replace_in_file', () => {
         path: 'a.md',
         old_string: '',
         new_string: 'x',
+        expected_sha256: '0'.repeat(64),
       }).success,
     ).toBe(false);
   });
 });
+
+function hash(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+import { createHash } from 'node:crypto';

@@ -8,6 +8,7 @@ import { createSession } from '../session.js';
 const HELP = `Commands:
   /help   Show this help
   /clear  Clear conversation history
+  /undo   Restore the latest file edit group
   /exit   Exit (also: /quit, Ctrl-C when idle)
 Anything else is sent to the agent.`;
 
@@ -42,6 +43,10 @@ export async function startRepl(cwd: string): Promise<number> {
     if (line === '/clear') {
       session.clearHistory();
       console.log('History cleared.');
+      continue;
+    }
+    if (line === '/undo') {
+      await session.undoLast();
       continue;
     }
     if (line.startsWith('/')) {
