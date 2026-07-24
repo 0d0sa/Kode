@@ -2,7 +2,9 @@
 
 A local coding agent (TypeScript CLI).
 
-> Status: **Phase 0 (scaffolding)**. See `docs/implementation-plan.md` for the full plan and `docs/Phase0.md` for the current phase.
+> Status: **Phase 1 (minimum working agent)**. Kode now supports streaming chat,
+> Anthropic/OpenAI-compatible providers, tool use, an interactive REPL, and one-shot runs.
+> See `docs/implementation-plan.md`, `docs/Phase0.md`, and `docs/Phase1.md`.
 
 ## Requirements
 
@@ -28,11 +30,14 @@ pnpm format:check # prettier --check .
 ```bash
 node dist/index.js --version
 node dist/index.js config
+node dist/index.js repl
+node dist/index.js run "read package.json and summarize it"
 ```
 
 ## Configuration
 
 Kode reads `kode.jsonc` from the current directory upward, falling back to
-`~/.kode/kode.jsonc`. See `docs/examples/kode.jsonc` for a sample. API keys are
-never stored in config; set them in `.env` / `.env.local` and reference by name
-via `model.apiKeyEnv`.
+`~/.kode/kode.jsonc`. See `docs/examples/kode.jsonc` for a sample. Prefer storing
+API keys in `.env` / `.env.local` and referencing them via `model.apiKeyEnv`.
+Inline `model.apiKey` is supported for compatibility but should not be committed;
+`kode config` always redacts it. A `local` provider must set `model.baseURL`.

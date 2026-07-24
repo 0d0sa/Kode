@@ -278,7 +278,7 @@ export type ApprovalResult = { decision: Decision; scope?: 'once' | 'session' };
 - **目标**：单轮/多轮对话 + 3 个工具（read / edit / bash）形成闭环。
 - **实现模块**：M01 M02 M04 M05 M09(read) M10(bash) M11(edit) M15(REPL)
 - **交付物**：
-  - 接 Anthropic provider，流式文本输出到终端；
+  - 接 Anthropic 与 OpenAI-compatible provider，流式文本输出到终端；
   - `read_file`、`replace_in_file`、`run_command` 三工具；
   - REPL：输入 prompt → agent 多步用工具 → 回答；
   - 简单 ABI 预算（固定保留最近 20 条消息）。

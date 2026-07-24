@@ -66,6 +66,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig([f])).toThrow(/provider/i);
   });
 
+  it('requires baseURL for a local provider', () => {
+    const f = join(workdir, 'kode.jsonc');
+    writeFileSync(f, JSON.stringify({ model: { provider: 'local', model: 'local-model' } }));
+    expect(() => loadConfig([f])).toThrow(/baseURL/);
+  });
+
   it('rejects malformed jsonc with parse error', () => {
     const f = join(workdir, 'kode.jsonc');
     writeFileSync(f, '{ "version": @ }');
