@@ -4,19 +4,16 @@
   "model": {
     "provider": "anthropic",
     "model": "claude-3-5-sonnet-20241022",
-    "apiKeyEnv": "ANTHROPIC_API_KEY"
+    "apiKeyEnv": "ANTHROPIC_API_KEY",
   },
   "permissions": {
     "default": "confirm",
     "overrides": {
       "fs.read": "allow",
       "fs.glob": "allow",
-      "fs.grep": "allow"
-    }
+      "fs.grep": "allow",
+    },
   },
-  "rules": [
-    "Always run `pnpm typecheck` after edits.",
-    "Never edit files under dist/."
-  ],
-  "logLevel": "info"
+  "rules": ["Always run `pnpm typecheck` after edits.", "Never edit files under dist/."],
+  "logLevel": "info",
 }

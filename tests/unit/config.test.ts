@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { findConfigFiles, homeConfigPath } from '../../src/config/find.js';
+import { findConfigFiles } from '../../src/config/find.js';
 import { loadConfig } from '../../src/config/loader.js';
 
 let workdir: string;
@@ -24,17 +24,25 @@ describe('findConfigFiles', () => {
     expect(found[0]).toBe(rootFile);
   });
 
-  it('appends home config last when present on this machine', () => {
-    mkdirSync(workdir, { recursive: true });
-    const projectFile = join(workdir, 'kode.jsonc');
+  it('appends the global config after project configs', () => {
+    const projectDir = join(workdir, 'project', 'packages', 'a');
+    const projectFile = join(workdir, 'project', 'kode.jsonc');
+    const globalFile = join(workdir, 'home', '.kode', 'kode.jsonc');
+    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(join(workdir, 'home', '.kode'), { recursive: true });
     writeFileSync(projectFile, '{}');
-    const found = findConfigFiles(workdir);
-    expect(found[0]).toBe(projectFile);
-    const home = homeConfigPath();
-    const homeIdx = found.indexOf(home);
-    if (homeIdx !== -1) {
-      expect(homeIdx).toBe(found.length - 1);
-    }
+    writeFileSync(globalFile, '{}');
+
+    expect(findConfigFiles(projectDir, globalFile)).toEqual([projectFile, globalFile]);
+  });
+
+  it('does not return the global config twice when cwd is its directory', () => {
+    const globalDir = join(workdir, '.kode');
+    const globalFile = join(globalDir, 'kode.jsonc');
+    mkdirSync(globalDir, { recursive: true });
+    writeFileSync(globalFile, '{}');
+
+    expect(findConfigFiles(globalDir, globalFile)).toEqual([globalFile]);
   });
 });
 

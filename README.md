@@ -1,6 +1,6 @@
 # Kode
 
-A local coding agent (TypeScript CLI). 
+A local coding agent (TypeScript CLI).
 
 > Status: **Phase 0 (scaffolding)**. See `docs/implementation-plan.md` for the full plan and `docs/Phase0.md` for the current phase.
 

@@ -18,7 +18,7 @@ export function homeConfigPath(): string {
  * The caller is expected to apply them farthest-first (home as base, closest
  * last) so that nearer files override farther ones. See `loadConfig`.
  */
-export function findConfigFiles(cwd: string): string[] {
+export function findConfigFiles(cwd: string, globalConfigPath = homeConfigPath()): string[] {
   const found: string[] = [];
   const start = isAbsolute(cwd) ? cwd : join(process.cwd(), cwd);
 
@@ -32,8 +32,9 @@ export function findConfigFiles(cwd: string): string[] {
     dir = dirname(dir);
   }
 
-  const home = homeConfigPath();
-  if (existsSync(home)) found.push(home);
+  if (existsSync(globalConfigPath) && !found.includes(globalConfigPath)) {
+    found.push(globalConfigPath);
+  }
 
   return found;
 }

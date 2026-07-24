@@ -1,15 +1,18 @@
 import { findConfigFiles } from '../../config/find.js';
 import { loadConfig } from '../../config/loader.js';
 import { loadEnv, assertApiKey } from '../../config/env.js';
-import { logger } from '../../infra/logger.js';
+import { configureLogger, logger } from '../../infra/logger.js';
 
 export function printResolvedConfig(cwd: string): void {
   loadEnv(cwd);
   const files = findConfigFiles(cwd);
-  logger.debug({ cwd, files }, 'config discovery');
 
   try {
     const { config } = loadConfig(files);
+    configureLogger(config.logLevel);
+    logger.info({ cwd, configFileCount: files.length }, 'config resolved');
+    logger.debug({ cwd, files }, 'config discovery');
+
     console.log('Config files (closest first):');
     if (files.length === 0) {
       console.log('  (none found, using defaults)');

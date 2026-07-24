@@ -7,8 +7,8 @@ function readJsonc(file: string): Record<string, unknown> {
   const text = readFileSync(file, 'utf8');
   const errors: ParseError[] = [];
   const value = parseJsonc(text, errors, { allowTrailingComma: true });
-  if (errors.length > 0) {
-    const first = errors[0];
+  const first = errors[0];
+  if (first) {
     throw new ConfigError(
       `${file}: JSONC parse error (code ${first.error} at offset ${first.offset}, length ${first.length})`,
       [file],

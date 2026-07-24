@@ -2,11 +2,22 @@
   "name": "kode",
   "version": "0.0.1",
   "type": "module",
-  "engines": { "node": ">=20.11" },
-  "bin": { "kode": "bin/kode.js" },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "bin": {
+    "kode": "bin/kode.js"
+  },
   "main": "dist/index.js",
-  "exports": { ".": "./dist/index.js" },
-  "files": ["dist", "bin", "README.md", "LICENSE"],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/index.ts",

@@ -5,10 +5,7 @@ import { replStub } from './commands/repl.js';
 
 export const program = new Command();
 
-program
-  .name('kode')
-  .description('A local coding agent.')
-  .version(VERSION, '-v, --version');
+program.name('kode').description('A local coding agent.').version(VERSION, '-v, --version');
 
 program
   .command('config')

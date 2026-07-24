@@ -24,9 +24,7 @@ export const ConfigSchema = z.object({
   permissions: PermissionsSchema.optional(),
   rules: z.array(z.string()).optional(),
   includeCoAuthoredBy: z.boolean().optional(),
-  logLevel: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .optional(),
+  logLevel: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
