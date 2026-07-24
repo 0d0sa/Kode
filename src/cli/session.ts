@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { agentLoop } from '../agent/loop.js';
 import { buildSystemPrompt } from '../agent/prompt.js';
-import { DEFAULT_CONTEXT_MESSAGES, DEFAULT_MAX_STEPS } from '../agent/types.js';
+import { DEFAULT_MAX_STEPS } from '../agent/types.js';
 import type { AgentDoneReason } from '../agent/types.js';
+import { ContextManager, DEFAULT_MAX_OUTPUT_TOKENS } from '../context/manager.js';
+import type { ContextReport } from '../context/types.js';
 import { findConfigFiles } from '../config/find.js';
 import { loadConfig } from '../config/loader.js';
 import type { Config } from '../config/schema.js';
@@ -29,12 +31,14 @@ export interface SessionDeps {
   /** Required when interactive && !autoApprove: asks the user a question, returns the raw answer. */
   ask?: (question: string, signal?: AbortSignal) => Promise<string>;
   undoStore?: UndoStore;
+  debug?: boolean;
 }
 
 export interface SessionOptions {
   autoApprove?: boolean;
   interactive: boolean;
   ask?: (question: string, signal?: AbortSignal) => Promise<string>;
+  debug?: boolean;
 }
 
 export interface TurnResult {
@@ -57,6 +61,7 @@ export function createSession(cwd: string, opts: SessionOptions): TerminalSessio
     ...(opts.autoApprove !== undefined ? { autoApprove: opts.autoApprove } : {}),
     interactive: opts.interactive,
     ...(opts.ask ? { ask: opts.ask } : {}),
+    ...(opts.debug !== undefined ? { debug: opts.debug } : {}),
   });
 }
 
@@ -65,6 +70,7 @@ export class TerminalSession {
   private sessionApproved = new Set<string>();
   private currentAbort: AbortController | null = null;
   private system: string;
+  private readonly contextManager: ContextManager;
   private readonly runId = randomUUID();
 
   constructor(private deps: SessionDeps) {
@@ -74,6 +80,13 @@ export class TerminalSession {
       date: new Date().toISOString().slice(0, 10),
       ...(deps.config.rules ? { rules: deps.config.rules } : {}),
       tools: deps.registry.specs(),
+    });
+    this.contextManager = new ContextManager({
+      provider: deps.provider,
+      ...(deps.config.agent?.context ? { context: deps.config.agent.context } : {}),
+      ...(deps.config.agent?.contextMessages !== undefined
+        ? { legacyContextMessages: deps.config.agent.contextMessages }
+        : {}),
     });
   }
 
@@ -92,6 +105,7 @@ export class TerminalSession {
 
   clearHistory(): void {
     this.history = [];
+    this.contextManager.reset();
   }
 
   historyLength(): number {
@@ -199,11 +213,9 @@ export class TerminalSession {
         system: this.system,
         messages: this.history,
         maxSteps: this.deps.config.agent?.maxSteps ?? DEFAULT_MAX_STEPS,
-        contextMessages: this.deps.config.agent?.contextMessages ?? DEFAULT_CONTEXT_MESSAGES,
+        contextManager: this.contextManager,
         ctx: this.toolContext(ac.signal),
-        ...(this.deps.config.model?.maxTokens !== undefined
-          ? { maxTokens: this.deps.config.model.maxTokens }
-          : {}),
+        maxTokens: this.deps.config.model?.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
         ...(this.deps.config.model?.temperature !== undefined
           ? { temperature: this.deps.config.model.temperature }
           : {}),
@@ -220,6 +232,10 @@ export class TerminalSession {
             process.stdout.write(
               ev.result.ok ? '  [ok]\n' : `  [error] ${firstLine(ev.result.output)}\n`,
             );
+            break;
+          case 'context':
+            if (this.deps.debug) renderContextReport(ev.report);
+            logger.debug({ context: ev.report }, 'context resolved');
             break;
           case 'done':
             reason = ev.reason;
@@ -239,6 +255,24 @@ export class TerminalSession {
       this.currentAbort = null;
       process.stdout.write('\n');
     }
+  }
+}
+
+function renderContextReport(report: ContextReport): void {
+  const { budget, usage } = report;
+  process.stderr.write(
+    `[context] window=${budget.contextWindowTokens} input_limit=${budget.inputLimitTokens} output=${budget.maxOutputTokens} safety=${budget.safetyReserveTokens}\n`,
+  );
+  process.stderr.write(
+    `[context] before=${usage.historyTokensBefore} after=${usage.historyTokensAfter} total=${usage.totalInputTokens} accuracy=${usage.countAccuracy}:${usage.countSource}\n`,
+  );
+  if (report.actions.length > 0) {
+    const actions = report.actions
+      .map((action) => (action.detail ? `${action.kind}(${action.detail})` : action.kind))
+      .join(',');
+    process.stderr.write(
+      `[context] actions=${actions} checkpoint_reused=${report.checkpointReused ? 1 : 0} summary_calls=${report.summaryCalls} ms=${report.durationMs}\n`,
+    );
   }
 }
 

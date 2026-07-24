@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { agentLoop } from '../../src/agent/loop.js';
 import type { AgentEvent, AgentRunOptions } from '../../src/agent/types.js';
+import { ContextManager } from '../../src/context/manager.js';
+import type { TokenCounter } from '../../src/context/counter.js';
+import type { Summarizer } from '../../src/context/summarize.js';
 import type {
   CompleteOptions,
   LLMMessage,
@@ -26,11 +29,11 @@ class MockProvider implements LLMProvider {
       for (const e of turn) yield e;
     })();
   }
-  countTokens(): number {
+  async countTokens(): Promise<number> {
     return 0;
   }
   modelInfo(): ModelInfo {
-    return { maxTokens: 1, supportsToolUse: true };
+    return { contextWindowTokens: 128_000, supportsToolUse: true };
   }
 }
 
@@ -85,7 +88,11 @@ function baseOpts(provider: LLMProvider, messages: LLMMessage[]): AgentRunOption
     system: 'sys',
     messages,
     maxSteps: 10,
-    contextMessages: 20,
+    contextManager: new ContextManager({
+      provider,
+      context: { windowTokens: 128_000, safetyReserveTokens: 0 },
+    }),
+    maxTokens: 1024,
     ctx: mockCtx(),
   };
 }
@@ -102,7 +109,7 @@ describe('agentLoop', () => {
     const history: LLMMessage[] = [{ role: 'user', content: 'hi' }];
     const events = await collect(agentLoop(baseOpts(provider, history)));
 
-    expect(events.map((e) => e.type)).toEqual(['step', 'text', 'text', 'done']);
+    expect(events.map((e) => e.type)).toEqual(['step', 'context', 'text', 'text', 'done']);
     expect(events.at(-1)).toEqual({ type: 'done', reason: 'end_turn' });
     expect(history.at(-1)).toEqual({
       role: 'assistant',
@@ -125,7 +132,16 @@ describe('agentLoop', () => {
     const events = await collect(agentLoop(baseOpts(provider, history)));
 
     const types = events.map((e) => e.type);
-    expect(types).toEqual(['step', 'tool_call', 'tool_result', 'step', 'text', 'done']);
+    expect(types).toEqual([
+      'step',
+      'context',
+      'tool_call',
+      'tool_result',
+      'step',
+      'context',
+      'text',
+      'done',
+    ]);
     const tr = events.find((e) => e.type === 'tool_result');
     expect(tr).toMatchObject({ name: 'echo', result: { ok: true, output: 'ping' } });
 
@@ -186,11 +202,85 @@ describe('agentLoop', () => {
       async *complete() {
         throw new APIUserAbortError('Request was aborted');
       },
-      countTokens: () => 0,
-      modelInfo: () => ({ maxTokens: 1, supportsToolUse: true }),
+      countTokens: async () => 0,
+      modelInfo: () => ({ contextWindowTokens: 128_000, supportsToolUse: true }),
     };
     const history: LLMMessage[] = [{ role: 'user', content: 'go' }];
     const events = await collect(agentLoop(baseOpts(provider, history)));
     expect(events.at(-1)).toEqual({ type: 'done', reason: 'aborted' });
+  });
+
+  it('keeps every provider request in budget across 30 tool calls', async () => {
+    const script: StreamEvent[][] = [];
+    for (let index = 0; index < 30; index++) {
+      script.push([
+        {
+          type: 'tool_use',
+          id: `t${index}`,
+          name: 'echo',
+          input: { text: `result-${index}` },
+        },
+        { type: 'stop', reason: 'tool_use' },
+      ]);
+    }
+    script.push([
+      { type: 'text', delta: 'complete' },
+      { type: 'stop', reason: 'end_turn' },
+    ]);
+    const provider = new MockProvider(script);
+    const counter: TokenCounter = {
+      count: async (request) => ({
+        tokens: request.messages.length * 100,
+        accuracy: 'tokenizer',
+        source: 'test',
+      }),
+    };
+    const summarizer: Summarizer = {
+      summarize: async () => ({
+        source: 'llm',
+        text: [
+          'Goal',
+          'task',
+          'Constraints',
+          'rules',
+          'Decisions',
+          'none',
+          'Files and edits',
+          'none',
+          'Commands and verification',
+          'none',
+          'Errors and rejected approaches',
+          'none',
+          'Open work',
+          'continue',
+        ].join('\n'),
+      }),
+    };
+    const contextManager = new ContextManager({
+      provider,
+      counter,
+      summarizer,
+      context: {
+        windowTokens: 1000,
+        safetyReserveTokens: 0,
+        minimumOutputTokens: 50,
+        preserveRecentTurns: 3,
+        toolResultTokens: 1000,
+      },
+    });
+    const history: LLMMessage[] = [{ role: 'user', content: 'run the long task' }];
+    const events = await collect(
+      agentLoop({
+        ...baseOpts(provider, history),
+        contextManager,
+        maxTokens: 100,
+        maxSteps: 31,
+      }),
+    );
+
+    expect(events.at(-1)).toEqual({ type: 'done', reason: 'end_turn' });
+    expect(provider.calls).toHaveLength(31);
+    expect(provider.calls.every((messages) => messages.length * 100 <= 900)).toBe(true);
+    expect(history).toHaveLength(62);
   });
 });

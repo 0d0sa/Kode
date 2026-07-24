@@ -2,10 +2,11 @@
 
 A local coding agent (TypeScript CLI).
 
-> Status: **Phase 2 (safe repository tools)**. Kode supports streaming chat,
+> Status: **Phase 3 (token-aware context management)**. Kode supports streaming chat,
 > Anthropic/OpenAI-compatible providers, repository search and editing, scoped
-> permissions, audit logs, and undo. See `docs/implementation-plan.md` and the
-> phase documents in `docs/`.
+> permissions, audit logs, undo, request-level token budgets, deterministic tool
+> compaction, and checkpointed history summaries. See `docs/implementation-plan.md`
+> and the phase documents in `docs/`.
 
 ## Requirements
 
@@ -33,6 +34,7 @@ node dist/index.js --version
 node dist/index.js config
 node dist/index.js repl
 node dist/index.js run "read package.json and summarize it"
+node dist/index.js run --debug "inspect the repository"
 ```
 
 Inside the REPL, `/undo` restores the latest successful file-edit group after
@@ -70,3 +72,15 @@ supports ordered `rules` matching `tools`, `paths`, and safe
 by default, while writes, commands, and workspace-external access require
 confirmation unless an explicit rule decides otherwise. See
 `docs/examples/kode.jsonc` for a complete example.
+
+Phase 3 replaces the old hard 20-message cutoff with a complete-request token
+budget. `model.maxTokens` remains the output limit. The input limit is the
+provider context window minus that output reserve and a safety reserve; compatible
+or local models can override the detected window with
+`agent.context.windowTokens`. When necessary, Kode first compacts older tool
+results, then summarizes completed history while retaining the root/latest user
+instructions and recent tool chain verbatim. Raw session history is not rewritten.
+
+Use `--debug` with `kode`, `kode repl`, or `kode run` to print numeric context
+budget and compaction diagnostics to stderr. Message bodies, summaries, source
+text, and keys are never included in that report.

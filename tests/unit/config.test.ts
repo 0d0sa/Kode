@@ -120,4 +120,65 @@ describe('loadConfig', () => {
     );
     expect(() => loadConfig([f])).toThrow(/matcher/);
   });
+
+  it('parses Phase 3 context settings without changing contextMessages compatibility', () => {
+    const f = join(workdir, 'kode.jsonc');
+    writeFileSync(
+      f,
+      JSON.stringify({
+        agent: {
+          contextMessages: 20,
+          context: {
+            windowTokens: 128000,
+            safetyReserveTokens: 2048,
+            minimumOutputTokens: 1024,
+            preserveRecentTurns: 3,
+            toolResultTokens: 2048,
+            summaryTriggerRatio: 0.8,
+          },
+        },
+      }),
+    );
+    const { config } = loadConfig([f]);
+    expect(config.agent?.contextMessages).toBe(20);
+    expect(config.agent?.context?.windowTokens).toBe(128000);
+  });
+
+  it('rejects a minimum output reserve larger than the configured context window', () => {
+    const f = join(workdir, 'kode.jsonc');
+    writeFileSync(
+      f,
+      JSON.stringify({
+        agent: { context: { windowTokens: 1000, minimumOutputTokens: 1000 } },
+      }),
+    );
+    expect(() => loadConfig([f])).toThrow(/minimumOutputTokens/);
+  });
+
+  it('rejects incompatible safety, window, and requested output limits', () => {
+    const f = join(workdir, 'kode.jsonc');
+    writeFileSync(
+      f,
+      JSON.stringify({
+        model: { provider: 'openai', model: 'mock', maxTokens: 100 },
+        agent: {
+          context: {
+            windowTokens: 1000,
+            safetyReserveTokens: 900,
+            minimumOutputTokens: 100,
+          },
+        },
+      }),
+    );
+    expect(() => loadConfig([f])).toThrow(/safetyReserveTokens/);
+
+    writeFileSync(
+      f,
+      JSON.stringify({
+        model: { provider: 'openai', model: 'mock', maxTokens: 100 },
+        agent: { context: { minimumOutputTokens: 200 } },
+      }),
+    );
+    expect(() => loadConfig([f])).toThrow(/model\.maxTokens/);
+  });
 });

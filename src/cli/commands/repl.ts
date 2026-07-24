@@ -12,12 +12,16 @@ const HELP = `Commands:
   /exit   Exit (also: /quit, Ctrl-C when idle)
 Anything else is sent to the agent.`;
 
-export async function startRepl(cwd: string): Promise<number> {
+export async function startRepl(cwd: string, opts: { debug?: boolean } = {}): Promise<number> {
   let session: ReturnType<typeof createSession>;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ask = (question: string, signal?: AbortSignal) => askReadline(rl, question, signal);
   try {
-    session = createSession(cwd, { interactive: true, ask });
+    session = createSession(cwd, {
+      interactive: true,
+      ask,
+      ...(opts.debug !== undefined ? { debug: opts.debug } : {}),
+    });
   } catch (e) {
     rl.close();
     return fail(e);

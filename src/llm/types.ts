@@ -42,23 +42,37 @@ export interface CompleteOptions {
   signal?: AbortSignal;
 }
 
+export interface TokenCountRequest {
+  model: string;
+  system: string;
+  tools: ToolSpec[];
+  messages: LLMMessage[];
+}
+
+export interface TokenCount {
+  tokens: number;
+  accuracy: 'exact' | 'tokenizer' | 'estimated';
+  source: string;
+}
+
 export type StreamEvent =
   | { type: 'text'; delta: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'stop'; reason: 'end_turn' | 'tool_use' | 'max_tokens' };
 
 export interface ModelInfo {
-  maxTokens: number;
+  contextWindowTokens: number;
   supportsToolUse: boolean;
 }
 
 export interface LLMProvider {
   complete(messages: LLMMessage[], opts: CompleteOptions): AsyncIterable<StreamEvent>;
-  countTokens(messages: LLMMessage[]): number;
+  /** Optional provider-native exact input count. Callers must fall back on failure. */
+  countTokens?(request: TokenCountRequest, signal?: AbortSignal): Promise<number>;
   modelInfo(model: string): ModelInfo;
 }
 
-/** Rough chars/4 estimate; real token counting arrives in Phase 3. */
+/** Legacy message-only estimate retained for compatibility with external callers. */
 export function estimateTokens(messages: LLMMessage[]): number {
   let chars = 0;
   for (const m of messages) {

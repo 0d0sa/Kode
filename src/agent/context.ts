@@ -1,7 +1,11 @@
 import type { LLMMessage } from '../llm/types.js';
 
 /**
- * Sliding-window context budget (Phase 1): keep the most recent `keep` messages.
+ * Legacy Phase 1 sliding window retained for API compatibility and migration
+ * tests. The Agent Loop no longer calls it; Phase 3 ContextManager is the
+ * authoritative request view.
+ *
+ * Keep the most recent `keep` messages.
  * Provider alignment: extend backwards to a real user turn when the cut would
  * start with an assistant/tool message or an orphaned tool_result. This may keep
  * more than `keep` messages for one uninterrupted tool chain. Phase 3 replaces
@@ -15,6 +19,10 @@ export function trimMessages(messages: LLMMessage[], keep: number): LLMMessage[]
   }
   return messages.slice(start);
 }
+
+export { ContextBudgetError } from '../context/errors.js';
+export { ContextManager, resolveContextOptions } from '../context/manager.js';
+export type * from '../context/types.js';
 
 function hasToolResult(m: LLMMessage | undefined): boolean {
   return (

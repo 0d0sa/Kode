@@ -302,7 +302,10 @@ export type ApprovalResult = { decision: Decision; scope?: 'once' | 'session' };
 - **验收**：对一个真实仓库跑“找到所有 `TODO` 并改成 `FIXME`”，中途需确认且可拒绝。
 - **难点**：ripgrep 未安装时的降级；Edit 在大文件上的性能。
 
-### Phase 3 — 上下文管理 ⏱ ~3 天
+### Phase 3 — 上下文管理 ⏱ ~4–5 天
+
+> 详细执行方案与已确认设计决策见 [`Phase3.md`](./Phase3.md)。
+> **状态：已实现（2026-07-24）**，完整请求预算、分层压缩、摘要 checkpoint 与 debug 报告均有自动化覆盖。
 
 - **目标**：在长任务中不爆 token、不丢关键指令。
 - **实现模块**：M07
@@ -366,13 +369,13 @@ export type ApprovalResult = { decision: Decision; scope?: 'once' | 'session' };
 | 0     | 脚手架           | ~2d   | `kode --version` |
 | 1     | 最小 Agent       | ~4d   | 能改 README      |
 | 2     | 工具/权限        | ~5–6d | 批量改 TODO      |
-| 3     | 上下文管理       | ~3d   | 长任务不爆 token |
+| 3     | 上下文管理       | ~4–5d | 长任务不爆 token |
 | 4     | 代码库理解       | ~4d   | 跨文件定位       |
 | 5     | 规划/自检        | ~3d   | 自动补单测       |
 | 6     | 体验/多模型/会话 | ~4d   | resume 续会话    |
 | 7     | 工程化/发布      | ~3d   | 单命令安装       |
 
-**MVP（对外可用）= Phase 1–3 合并体**，约 2.5 周。
+**MVP（对外可用）= Phase 1–3 合并体**，约 2.5–3 周。
 
 ## 8. 建议目录结构
 

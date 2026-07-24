@@ -1,6 +1,5 @@
 import type { ContentBlock, ToolUseBlock } from '../llm/types.js';
 import { isAbortError } from '../llm/types.js';
-import { trimMessages } from './context.js';
 import type { AgentEvent, AgentRunOptions } from './types.js';
 
 /**
@@ -19,17 +18,27 @@ export async function* agentLoop(opts: AgentRunOptions): AsyncIterable<AgentEven
     }
     yield { type: 'step', index: step };
 
-    const view = trimMessages(history, opts.contextMessages);
     const blocks: ContentBlock[] = [];
     const toolUses: ToolUseBlock[] = [];
     let stopReason: 'end_turn' | 'tool_use' | 'max_tokens' = 'end_turn';
+    const tools = registry.specs();
 
     try {
-      for await (const ev of provider.complete(view, {
+      const resolution = await opts.contextManager.resolve({
         model: opts.model,
         system: opts.system,
-        tools: registry.specs(),
-        ...(opts.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {}),
+        tools,
+        messages: history,
+        requestedOutputTokens: opts.maxTokens,
+        ...(opts.signal ? { signal: opts.signal } : {}),
+      });
+      yield { type: 'context', report: resolution.report };
+
+      for await (const ev of provider.complete(resolution.messages, {
+        model: opts.model,
+        system: opts.system,
+        tools,
+        maxTokens: resolution.maxOutputTokens,
         ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),
       })) {
@@ -68,6 +77,7 @@ export async function* agentLoop(opts: AgentRunOptions): AsyncIterable<AgentEven
     for (const tu of toolUses) {
       yield { type: 'tool_call', name: tu.name, input: tu.input };
       const result = await registry.dispatch(tu.name, tu.input, ctx, tu.id);
+      opts.contextManager.recordToolResult(tu.id, tu.name, tu.input, result);
       yield { type: 'tool_result', name: tu.name, result };
       results.push({
         type: 'tool_result',

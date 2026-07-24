@@ -6,7 +6,11 @@ import { runOnce } from './commands/run.js';
 
 export const program = new Command();
 
-program.name('kode').description('A local coding agent.').version(VERSION, '-v, --version');
+program
+  .name('kode')
+  .description('A local coding agent.')
+  .version(VERSION, '-v, --version')
+  .option('--debug', 'Print context budget diagnostics to stderr');
 
 program
   .command('config')
@@ -16,8 +20,11 @@ program
 program
   .command('repl')
   .description('Start interactive REPL')
-  .action(async () => {
-    process.exitCode = await startRepl(process.cwd());
+  .option('--debug', 'Print context budget diagnostics to stderr')
+  .action(async (opts: { debug?: boolean }) => {
+    process.exitCode = await startRepl(process.cwd(), {
+      debug: opts.debug ?? Boolean(program.opts().debug),
+    });
   });
 
 program
@@ -25,11 +32,17 @@ program
   .description('Run a single prompt and exit')
   .argument('<prompt>', 'Prompt to run')
   .option('-y, --yes', 'Auto-approve all tool confirmations (use with care)')
-  .action(async (prompt: string, opts: { yes?: boolean }) => {
-    process.exitCode = await runOnce(process.cwd(), prompt, opts);
+  .option('--debug', 'Print context budget diagnostics to stderr')
+  .action(async (prompt: string, opts: { yes?: boolean; debug?: boolean }) => {
+    process.exitCode = await runOnce(process.cwd(), prompt, {
+      ...opts,
+      debug: opts.debug ?? Boolean(program.opts().debug),
+    });
   });
 
 // Bare `kode` starts the REPL.
 program.action(async () => {
-  process.exitCode = await startRepl(process.cwd());
+  process.exitCode = await startRepl(process.cwd(), {
+    debug: Boolean(program.opts().debug),
+  });
 });

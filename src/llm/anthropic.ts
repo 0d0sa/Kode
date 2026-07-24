@@ -1,8 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { childLogger } from '../infra/logger.js';
 import { toAnthropicMessages } from './convert-anthropic.js';
-import type { CompleteOptions, LLMMessage, LLMProvider, ModelInfo, StreamEvent } from './types.js';
-import { abortableSleep, estimateTokens } from './types.js';
+import type {
+  CompleteOptions,
+  LLMMessage,
+  LLMProvider,
+  ModelInfo,
+  StreamEvent,
+  TokenCountRequest,
+} from './types.js';
+import { abortableSleep } from './types.js';
 
 const log = childLogger('llm');
 
@@ -106,12 +113,25 @@ export class AnthropicProvider implements LLMProvider {
     }
   }
 
-  countTokens(messages: LLMMessage[]): number {
-    return estimateTokens(messages);
+  async countTokens(request: TokenCountRequest, signal?: AbortSignal): Promise<number> {
+    const converted = toAnthropicMessages(request.messages);
+    const system = request.system || converted.system;
+    const result = await this.client.messages.countTokens(
+      {
+        model: request.model,
+        messages: converted.messages,
+        ...(system ? { system } : {}),
+        ...(request.tools.length
+          ? { tools: request.tools as Anthropic.MessageCountTokensTool[] }
+          : {}),
+      },
+      { signal },
+    );
+    return result.input_tokens;
   }
 
   modelInfo(_model: string): ModelInfo {
-    return { maxTokens: 200_000, supportsToolUse: true };
+    return { contextWindowTokens: 200_000, supportsToolUse: true };
   }
 }
 

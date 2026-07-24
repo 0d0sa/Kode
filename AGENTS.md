@@ -44,5 +44,5 @@ pnpm build
 - `src/config/` — config schema, discovery, loader, env
 - `src/infra/` — logger and other infra
 - `src/cli/` — commander entry + commands
-- `docs/` — `implementation-plan.md`, `Phase0.md`, `Phase1.md`, `Phase2.md`, examples
+- `docs/` — implementation plan, Phase 0–3 designs, examples
 - `tests/` — unit tests and fixtures

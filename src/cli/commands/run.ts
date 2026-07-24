@@ -6,6 +6,7 @@ import { createSession } from '../session.js';
 
 export interface RunOptions {
   yes?: boolean;
+  debug?: boolean;
 }
 
 /**
@@ -28,6 +29,7 @@ export async function runOnce(cwd: string, prompt: string, opts: RunOptions): Pr
       ...(opts.yes !== undefined ? { autoApprove: opts.yes } : {}),
       interactive,
       ...(ask ? { ask } : {}),
+      ...(opts.debug !== undefined ? { debug: opts.debug } : {}),
     });
   } catch (e) {
     rl?.close();

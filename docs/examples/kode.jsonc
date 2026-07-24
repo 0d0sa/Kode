@@ -1,5 +1,5 @@
 {
-  // Kode 配置示例（Phase 2）。
+  // Kode 配置示例（Phase 3）。
   // provider: "anthropic"（Anthropic 直连或兼容网关）| "openai" | "local"（OpenAI 兼容端点）
   "version": 1,
   "model": {
@@ -25,7 +25,18 @@
   // },
   "agent": {
     "maxSteps": 25,
+    // Phase 1 兼容字段；Phase 3 不再按消息条数直接截断。
     "contextMessages": 20,
+    "context": {
+      "enabled": true,
+      // provider 信息不准确时覆盖上下文窗口（常用于兼容/本地模型）：
+      // "windowTokens": 128000,
+      "safetyReserveTokens": 2048,
+      "minimumOutputTokens": 1024,
+      "preserveRecentTurns": 3,
+      "toolResultTokens": 2048,
+      "summaryTriggerRatio": 0.8,
+    },
   },
   "permissions": {
     "default": "confirm",

@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { childLogger } from '../infra/logger.js';
 import { toOpenAIMessages, toOpenAITools } from './convert-openai.js';
 import type { CompleteOptions, LLMMessage, LLMProvider, ModelInfo, StreamEvent } from './types.js';
-import { abortableSleep, estimateTokens } from './types.js';
+import { abortableSleep } from './types.js';
 
 const log = childLogger('llm');
 
@@ -13,6 +13,8 @@ export interface OpenAIProviderOptions {
   apiKey: string;
   baseURL?: string;
 }
+
+const DEFAULT_MAX_TOKENS = 8192;
 
 /** Works with OpenAI and any OpenAI-compatible chat.completions endpoint (via baseURL). */
 export class OpenAIProvider implements LLMProvider {
@@ -32,7 +34,7 @@ export class OpenAIProvider implements LLMProvider {
       messages: toOpenAIMessages(messages, opts.system),
       stream: true,
       ...(opts.tools?.length ? { tools: toOpenAITools(opts.tools) } : {}),
-      ...(opts.maxTokens !== undefined ? { max_tokens: opts.maxTokens } : {}),
+      max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
     };
     log.debug({ provider: 'openai', model: opts.model, msgs: req.messages.length }, 'llm request');
@@ -85,12 +87,8 @@ export class OpenAIProvider implements LLMProvider {
     }
   }
 
-  countTokens(messages: LLMMessage[]): number {
-    return estimateTokens(messages);
-  }
-
   modelInfo(_model: string): ModelInfo {
-    return { maxTokens: 128_000, supportsToolUse: true };
+    return { contextWindowTokens: 128_000, supportsToolUse: true };
   }
 }
 

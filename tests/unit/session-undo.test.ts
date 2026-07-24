@@ -22,8 +22,8 @@ const provider: LLMProvider = {
   async *complete() {
     yield { type: 'stop', reason: 'end_turn' };
   },
-  countTokens: () => 0,
-  modelInfo: () => ({ maxTokens: 1, supportsToolUse: true }),
+  countTokens: async () => 0,
+  modelInfo: () => ({ contextWindowTokens: 128_000, supportsToolUse: true }),
 };
 
 let workdir: string;
