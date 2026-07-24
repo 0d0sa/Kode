@@ -93,7 +93,7 @@
 | M14 | Todo Tool | Tools | 供 agent 自管理的结构化任务列表（M03 的工具面） |
 | M15 | CLI / REPL | Interface | argv 解析、REPL、流式输出渲染 |
 | M16 | Renderer | Interface | markdown、代码高亮、diff、进度/确认 UI（Ink） |
-| M17 | Config System | Foundation | opencode.jsonc、`.env`、模型/规则/放权配置 |
+| M17 | Config System | Foundation | kode.jsonc、`.env`、模型/规则/放权配置 |
 | M18 | Logger | Foundation | 结构化日志（pino）、调试模式、事件落盘 |
 | M19 | Build & Dist | Foundation | tsup/bun 打包、单可执行分发、跨平台脚本 |
 | M20 | Telemetry | Foundation |（可选）指标、错误上报（本地、可关） |
@@ -118,7 +118,7 @@
 
 **M06 Permission System**
 - 决策点：工具执行前 → 查策略表 → `allow / confirm / deny`；
-- 策略来源：默认策略 + `opencode.jsonc` 放权 + 运行时用户授权 + 会话级放权范围（如“本次任务允许所有写操作”）；
+- 策略来源：默认策略 + `kode.jsonc` 放权 + 运行时用户授权 + 会话级放权范围（如“本次任务允许所有写操作”）；
 - 每次决策写审计日志（含 input 摘要）。
 
 **M07 Context Manager**
@@ -241,7 +241,7 @@ export type ApprovalResult = { decision: Decision; scope?: "once" | "session" };
 - **交付物**：
   - `pnpm`/`bun` 工程、tsconfig、tsup 构建；
   - `kode` 命令可打印版本；
-  - 读取 `opencode.jsonc`（zod 校验）、`.env`（模型密钥）；
+  - 读取 `kode.jsonc`（zod 校验）、`.env`（模型密钥）；
   - pino 日志落 `~/.kode/logs/`。
 - **验收**：`kode --version` 输出版本；错误配置有清晰报错。
 - **难点**：配置 schema 的演进策略（保留 `unknown` 字段、版本号）。
@@ -358,12 +358,15 @@ Kode/
 │   ├── infra/            # M18 logger  M19 build辅助  M20 telemetry
 │   └── index.ts
 ├── docs/
-│   └── implementation-plan.md
+│   ├── implementation-plan.md
+│   ├── Phase0.md
+│   └── examples/
+│       └── kode.jsonc    # 用户示例（不置仓库根，避免干扰发现逻辑）
 ├── tests/
 │   ├── unit/
 │   ├── replay/          # 录制的真实会话回放
 │   └── fixtures/
-├── opencode.jsonc        # 约定配置示例
+├── kode.jsonc            # 项目自身配置（开发 Kode 时所用）
 ├── AGENTS.md             # 给 agent 自己看的项目约定
 ├── package.json
 └── tsconfig.json

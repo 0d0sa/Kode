@@ -1,0 +1,22 @@
+{
+  // Phase 0 placeholder sample; later phases will document real field scenarios.
+  "version": 1,
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-20241022",
+    "apiKeyEnv": "ANTHROPIC_API_KEY"
+  },
+  "permissions": {
+    "default": "confirm",
+    "overrides": {
+      "fs.read": "allow",
+      "fs.glob": "allow",
+      "fs.grep": "allow"
+    }
+  },
+  "rules": [
+    "Always run `pnpm typecheck` after edits.",
+    "Never edit files under dist/."
+  ],
+  "logLevel": "info"
+}

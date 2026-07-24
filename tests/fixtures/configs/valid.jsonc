@@ -1,0 +1,13 @@
+{
+  // Example valid project config
+  "version": 1,
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-20241022",
+    "apiKeyEnv": "ANTHROPIC_API_KEY"
+  },
+  "rules": [
+    "Always run `pnpm typecheck` after edits."
+  ],
+  "logLevel": "debug",
+}

@@ -15,3 +15,15 @@ ehthumbs.db
 # Env
 .env
 .env.local
+
+# Build artifacts
+dist/
+
+# Dependencies
+node_modules/
+
+# Coverage
+coverage/
+
+# pnpm
+.pnpm-store/
